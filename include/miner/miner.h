@@ -15,8 +15,6 @@ typedef int32_t   s32;
 typedef uint64_t  u64;
 typedef int64_t   s64;
 
-
-
 typedef struct {
     byte* data;
     long  size; // this is SIZE IN BYTES. not length. Length is size / 8 (uchar)
@@ -54,6 +52,18 @@ void set_table_pointers(FlatbufferFile* fb_buff) {
     
     vtable_relptr   = fb_buff->table[0] * sizeof(char); //The offset for the vtable is described as the first byte of the table
     fb_buff->vtable = fb_buff->table - vtable_relptr; //its backwards though so gotta subtract
+}
+
+void read_vtable(FlatbufferFile* fb_buff) {
+    u16* ptr = (u16*)fb_buff->vtable; 
+    int size = (*ptr);
+    
+    printf("vtable size: %u\n", size);
+    while (++ptr < fb_buff->vtable + size) {
+        printf("thing: %u\n", *ptr);
+    }
+    
+    //remember, u8 and then u32 prolly means union (specifier + tableptr)
 }
 
 

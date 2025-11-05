@@ -13,6 +13,8 @@ int main () {
     printf("First table value: %u\n", root->table[0]);
     printf("First vtable value: %u\n", root->vtable[0]);
     
+    read_vtable(root);
+    
     free(root->data);
     free(root);
 
