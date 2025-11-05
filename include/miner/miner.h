@@ -26,7 +26,10 @@ typedef struct {
 
 } FlatbufferFile;
 
-// load flatbuffer and allocate new memory for it
+// load flatbuffer and allocate new memory for it.
+// Whole file gets loaded into RAM. This is probably bad for larger
+// files but will probably be faster for smaller files. Should make this
+// an option.
 void alloc_flatbuffer(FlatbufferFile* fb_buff, char* path) {
     long filelen = 0;
     FILE* fileptr;
@@ -56,15 +59,20 @@ void set_table_pointers(FlatbufferFile* fb_buff) {
     fb_buff->vtable = fb_buff->table - vtable_relptr; //its backwards though so gotta subtract
 }
 
-char guesstimate_size(u16* membs, int num_membs, int indx) {
+char guesstimate_size(u16* membs, int num_membs, u16 offset) {
     if (!membs) { return -1; }
 
-    u16* start = membs + (indx*sizeof(u16));
+    for (int i = 0; i < num_membs; i++) {
 
-    if ((start - membs) > num_membs*sizeof(u16)) { return -1; }
+        if (membs[i] == offset) { //offset is a valid offset
+            if (i+1 < num_membs) { //ensure there is another valid offset after current
+                return membs[i+1] - offset; //get distance of next member
+            }
+            return 0; // TODO: Last offset size is calculated from tablesize - offset
+        }
+    }
 
-    u16 offset = *start;
-    
+    return -1;
 }
 
 void read_vtable(FlatbufferFile* fb_buff) {
@@ -73,18 +81,26 @@ void read_vtable(FlatbufferFile* fb_buff) {
 
     int num_membs = (size-2) / 2;
 
+    // copy the vtable offsets to a buffer
+    // and then sort it. Makes getting sizes easier, because
+    // n+1 - n = size of n
+    u16* offsets = malloc(num_membs * sizeof(u16));
+    memcpy(offsets, ptr+1, size-2);
+
+    qsort(offsets, num_membs, sizeof(u16), compare_u16);
+
     printf("\nVtable members (%u):\n", num_membs);
+
     int id = 0;
     while (++ptr < fb_buff->vtable + size) {
         if (*ptr == 0) {
             printf("%u: default\n", id++);
         } else {
-            printf("%u: %u\n", id++, *ptr);
+            printf("%u: %u {%d}\n", id++, *ptr, guesstimate_size(offsets, num_membs, *ptr));
         }
     }
 
-
+    free(offsets);
     //remember, u8 and then u32 prolly means union (specifier + tableptr)
 }
-
 

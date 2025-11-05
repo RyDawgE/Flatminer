@@ -2,19 +2,16 @@
 #include "miner\miner.h"
 
 int main () {
+    char* path = "..\\data\\a.bin";
     printf("Hello, Flatminer!\n");
+    printf("Mining: %s", path);
+
 
     FlatbufferFile* root = malloc(sizeof(FlatbufferFile));
-    alloc_flatbuffer(root, "..\\data\\a.bin");
-    
-    printf("First table pointer: %u\n", root->data[0]);
-    
+    alloc_flatbuffer(root, path);
     set_table_pointers(root);
-    printf("First table value: %u\n", root->table[0]);
-    printf("First vtable value: %u\n", root->vtable[0]);
-    
     read_vtable(root);
-    
+
     free(root->data);
     free(root);
 
