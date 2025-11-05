@@ -5,7 +5,7 @@ int main () {
     printf("Hello, Flatminer!\n");
 
     FlatbufferFile* root = malloc(sizeof(FlatbufferFile));
-    alloc_flatbuffer(root, "..\\data\\b.bin");
+    alloc_flatbuffer(root, "..\\data\\a.bin");
     
     printf("First table pointer: %u\n", root->data[0]);
     

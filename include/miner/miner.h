@@ -58,9 +58,10 @@ void read_vtable(FlatbufferFile* fb_buff) {
     u16* ptr = (u16*)fb_buff->vtable; 
     int size = (*ptr);
     
-    printf("vtable size: %u\n", size);
+    printf("\nVtable members:\n");
+    int id = 0;
     while (++ptr < fb_buff->vtable + size) {
-        printf("thing: %u\n", *ptr);
+        printf("%u: %u\n", id++, *ptr);
     }
     
     //remember, u8 and then u32 prolly means union (specifier + tableptr)
