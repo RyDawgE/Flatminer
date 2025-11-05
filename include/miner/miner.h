@@ -1,5 +1,7 @@
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
+#include "util.c"
 
 #define byte unsigned char
 
@@ -18,26 +20,26 @@ typedef int64_t   s64;
 typedef struct {
     byte* data;
     long  size; // this is SIZE IN BYTES. not length. Length is size / 8 (uchar)
-    
+
     byte* table;
     byte* vtable;
-        
+
 } FlatbufferFile;
 
 // load flatbuffer and allocate new memory for it
 void alloc_flatbuffer(FlatbufferFile* fb_buff, char* path) {
     long filelen = 0;
     FILE* fileptr;
-    
+
     if (!fb_buff) { return; }
-    
+
     // I stole this file opening code from stack overflow i hope its fine
-    
+
     fileptr = fopen(path, "rb");
     fseek(fileptr, 0, SEEK_END);          // Jump to the end of the file
     filelen = ftell(fileptr);             // Get the current byte offset in the file
     rewind(fileptr);                      // Jump back to the beginning of the file
-    
+
     fb_buff->size = filelen;
     fb_buff->data = (char *)malloc(filelen * sizeof(char)); // Enough memory for the file
     fread(fb_buff->data, 1, filelen, fileptr); // Read in the entire file
@@ -47,23 +49,41 @@ void alloc_flatbuffer(FlatbufferFile* fb_buff, char* path) {
 void set_table_pointers(FlatbufferFile* fb_buff) {
     s32 table_relptr    = fb_buff->data[0]; //First byte of flatbuffer points to the initial table
     s16 vtable_relptr   = 0;
-    
+
     fb_buff->table  = fb_buff->data + table_relptr * sizeof(char); //The offset from the beginning is the value of that byte
-    
+
     vtable_relptr   = fb_buff->table[0] * sizeof(char); //The offset for the vtable is described as the first byte of the table
     fb_buff->vtable = fb_buff->table - vtable_relptr; //its backwards though so gotta subtract
 }
 
-void read_vtable(FlatbufferFile* fb_buff) {
-    u16* ptr = (u16*)fb_buff->vtable; 
-    int size = (*ptr);
+char guesstimate_size(u16* membs, int num_membs, int indx) {
+    if (!membs) { return -1; }
+
+    u16* start = membs + (indx*sizeof(u16));
+
+    if ((start - membs) > num_membs*sizeof(u16)) { return -1; }
+
+    u16 offset = *start;
     
-    printf("\nVtable members:\n");
+}
+
+void read_vtable(FlatbufferFile* fb_buff) {
+    u16* ptr = (u16*)fb_buff->vtable;
+    int size = (*ptr);
+
+    int num_membs = (size-2) / 2;
+
+    printf("\nVtable members (%u):\n", num_membs);
     int id = 0;
     while (++ptr < fb_buff->vtable + size) {
-        printf("%u: %u\n", id++, *ptr);
+        if (*ptr == 0) {
+            printf("%u: default\n", id++);
+        } else {
+            printf("%u: %u\n", id++, *ptr);
+        }
     }
-    
+
+
     //remember, u8 and then u32 prolly means union (specifier + tableptr)
 }
 
