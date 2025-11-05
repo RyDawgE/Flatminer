@@ -1,0 +1,43 @@
+[23]  # Version number. Do not delete.
+
+[[workspace]]
+C:\Users\RyDaw\Documents\flatminer
+
+[[build commands]]
+build_working_dir:      ./
+run_working_dir:        ./build/    # working dir for the run command
+
+open_panel_on_build:    true  #  <- any settings specified here will apply to all commands unless overridden
+close_panel_on_success: false
+error_regex:            ^(?P<file>[^:]+):(?P<line>\d+):(?: (?P<col>\d+): )?(?P<type>error|warning|note): (?P<msg>.*)$
+auto_jump_to_error:     true
+
+[Debug Build And Run]
+build_command:          build.bat # should be an executable or a script
+run_command:            ./build/flatminer.exe     # will be run if build succeeds
+key_binding:            Ctrl-Alt-Shift-F11
+
+[Build]
+build_command:          build.bat # should be an executable or a script
+key_binding:            Ctrl-B
+
+[Run]
+run_command:            ./build/flatminer.exe     # will be run if build succeeds
+key_binding:            F5
+
+
+# Example error regexes:
+# For jai:  ^(?P<file>.*):(?P<line>\d+),(?P<col>\d+): (?P<type>Error|Warning|Info): (?P<msg>.*)|^(?P<msg>.*error LNK.*)
+# For msvc: ^(?P<file>.*)\((?P<line>\d+),(?P<col>\d+)\): (?P<type>error|warning) (?P<msg>.*)$
+# For g++: ^(?P<file>[^:]+):(?P<line>\d+):(?: (?P<col>\d+): )?(?P<type>error|warning|note): (?P<msg>.*)$
+
+# ... let us know what regex works for you and we'll add it here
+
+# NOTE:
+# You can use the following variables in build_command or run_command:
+# %FILE%      - full path to currenly active file
+# %FILE_DIR%  - the directory of the currently active file
+# %FILE_NAME% - current file name, with extension
+# %FILE_NAME_NO_EXTENSION% - current file name, without extension
+# %BUILD_WORKING_DIR% - working dir of the build command
+# %RUN_WORKING_DIR%   - working dir of the run command

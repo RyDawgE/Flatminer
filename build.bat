@@ -1,0 +1,1 @@
+gcc -o ./build/flatminer.exe -I"./include" -L"./lib" ./src/main.c
