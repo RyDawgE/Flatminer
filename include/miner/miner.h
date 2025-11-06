@@ -74,12 +74,12 @@ void alloc_flatbuffer(FlatbufferFile* fb_buff, char* path) {
 }
 
 void set_table_pointers(FlatbufferFile* fb_buff) {
-    s32 table_relptr    = fb_buff->data[0]; //First byte of flatbuffer points to the initial table
+    s32 table_relptr    = *(u32*)fb_buff->data; //First byte of flatbuffer points to the initial table
     s16 vtable_relptr   = 0;
 
-    fb_buff->table  = fb_buff->data + table_relptr * sizeof(char); //The offset from the beginning is the value of that byte
+    fb_buff->table  = fb_buff->data + table_relptr; //The offset from the beginning is the value of that byte
 
-    vtable_relptr   = fb_buff->table[0] * sizeof(char); //The offset for the vtable is described as the first byte of the table
+    vtable_relptr   = *(u16*)fb_buff->table; //The offset for the vtable is described as the first 2 bytes of the table
     fb_buff->vtable = fb_buff->table - vtable_relptr; //its backwards though so gotta subtract
 }
 
@@ -148,19 +148,38 @@ void read_vtable(FlatbufferFile* fb_buff) {
                     byte* vec = (table_offset + field); // start of vec, including the 4 byte size header
                     int vec_size = *(u32*)vec;
                     
-                    // Generic vec
-                    if (vec_size > 0) {
-                        printf("Possible Vector Size: [%d] ", vec_size);                    
-                    }
-                    
                     // Try for string
-                    if (strlen(vec+4) == vec_size) { // if cstring length is shorter than expected vec length, then it cant be a string
+                    if (vec_size > 0 && strlen(vec+4) == vec_size) { // if cstring length is shorter than expected vec length, then it cant be a string
                         printf("Possible String: \"%s\" ", vec+4);
                         type = FIELD_U32_STRING;
+                        break;
                     }
                     
-                    // Try for table array
-                                 
+                    // Generic vec
+                    if (vec_size > 0) {
+                        printf("Possible Vector Length: [%d] ", vec_size); 
+                        
+                        // Try for table array  
+                        // This code actually analyzes the LAST element in the
+                        // Object array, purely because its easier to follow along in
+                        // a hex editor
+                        u32 first_offset_loc = *(u32*)(vec + (4*14)); 
+                        byte* first_table = (vec + (4*14)) + first_offset_loc; 
+                        
+                                            
+                        printf("\n%d\n", *first_table);
+                        // FlatbufferFile* sub = malloc(sizeof(FlatbufferFile));
+                        // sub->data = first_table;
+                        // set_table_pointers(sub);
+                        
+                        
+                        //read_vtable(sub);
+                        
+                        
+                        //free(sub->data);
+                        //free(sub);                
+                    }
+                                     
                     break; 
                 }
             case 8: type = FIELD_U64; break;
