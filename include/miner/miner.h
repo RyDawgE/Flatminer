@@ -76,32 +76,44 @@ char guesstimate_size(u16* membs, int num_membs, u16 offset) {
 }
 
 void read_vtable(FlatbufferFile* fb_buff) {
-    u16* ptr = (u16*)fb_buff->vtable;
-    int size = (*ptr);
+    u16* ptr = (u16*)fb_buff->vtable; 
+    u16 vsize = (*ptr);
+    u16 tsize = (*++ptr);
 
-    int num_membs = (size-2) / 2;
-
+    u16 vlen = (vsize - 4) / 2;
+    
     // copy the vtable offsets to a buffer
     // and then sort it. Makes getting sizes easier, because
     // n+1 - n = size of n
-    u16* offsets = malloc(num_membs * sizeof(u16));
-    memcpy(offsets, ptr+1, size-2);
+    u16* offsets = malloc((vsize - 2));
+    memcpy(offsets, ptr, (vsize - 2));
+    
+    qsort(offsets, vlen + 1, sizeof(u16), compare_u16);
 
-    qsort(offsets, num_membs, sizeof(u16), compare_u16);
-
-    printf("\nVtable members (%u):\n", num_membs);
+    printf("\nVtable members (%u):\n", vlen + 1);
 
     int id = 0;
-    ptr = ptr+2;
-    while (ptr++ < fb_buff->vtable + size) {
+    while (++ptr < fb_buff->vtable + vsize) {
         if (*ptr == 0) {
             printf("%u: default\n", id++);
         } else {
-            printf("%u: %u {%d}\n", id++, *ptr, guesstimate_size(offsets, num_membs, *ptr));
+            int size = guesstimate_size(offsets, vlen + 1, *ptr);
+            printf("%u: %u {%d} ", id++, *ptr, size);
+            
+            if (size == 4) {
+                byte* table_offset_loc = (fb_buff->table + *ptr);
+                int table_offset = *(u16*)table_offset_loc;
+                
+                byte* vec = (table_offset + fb_buff->table + *ptr);
+                int vec_size = *(u32*)vec;
+                
+                printf("Possible String: %s", vec+4);
+            }
+            
+            printf("\n");
         }
     }
 
     free(offsets);
     //remember, u8 and then u32 prolly means union (specifier + tableptr)
 }
-
