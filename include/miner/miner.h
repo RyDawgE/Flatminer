@@ -17,14 +17,38 @@ typedef int32_t   s32;
 typedef uint64_t  u64;
 typedef int64_t   s64;
 
+typedef enum {
+    FIELD_UNKNOWN,
+    FIELD_U64,
+    FIELD_U32,
+    FIELD_U32_PTR,
+    FIELD_U32_STRING,
+    FIELD_U16,
+    FIELD_U8
+} FlatbufferType;
+
 typedef struct {
     byte* data;
     long  size; // this is SIZE IN BYTES. not length. Length is size / 8 (uchar)
 
     byte* table;
     byte* vtable;
+    
+    u32* types;
 
 } FlatbufferFile;
+
+const char* flatbuffer_type_name(FlatbufferType t) {
+    switch (t) {
+        case FIELD_U8:          return "FIELD_U8";
+        case FIELD_U16:         return "FIELD_U16";
+        case FIELD_U32:         return "FIELD_U32";
+        case FIELD_U32_STRING:  return "FIELD_U32_STRING";
+        case FIELD_U32_PTR:     return "FIELD_U32_PTR";
+        case FIELD_U64:         return "FIELD_U64";
+        default:                return "FIELD_UNKNOWN";
+    }
+}
 
 // load flatbuffer and allocate new memory for it.
 // Whole file gets loaded into RAM. This is probably bad for larger
@@ -77,38 +101,85 @@ char guesstimate_size(u16* membs, int num_membs, u16 offset) {
 
 void read_vtable(FlatbufferFile* fb_buff) {
     u16* ptr = (u16*)fb_buff->vtable; 
+    // first 2 bytes of vtable describe size of vtable, next 2 bytes are size of table
     u16 vsize = (*ptr);
     u16 tsize = (*++ptr);
 
+    // number of fields in the vtable
     u16 vlen = (vsize - 4) / 2;
     
     // copy the vtable offsets to a buffer
     // and then sort it. Makes getting sizes easier, because
     // n+1 - n = size of n
+    // Slap on the size of buffer as well, so that
+    // the last field can determine its size, since normally n+1 wouldnt exist.
     u16* offsets = malloc((vsize - 2));
     memcpy(offsets, ptr, (vsize - 2));
-    
     qsort(offsets, vlen + 1, sizeof(u16), compare_u16);
+    
+    fb_buff->types = malloc((vsize - 2) * sizeof(FlatbufferType));
 
-    printf("\nVtable members (%u):\n", vlen + 1);
+    printf("\nRoot:\n");
 
-    int id = 0;
+    int i = 0;
     while (++ptr < fb_buff->vtable + vsize) {
         if (*ptr == 0) {
-            printf("%u: default\n", id++);
+            printf("%u: default\n", i++);
         } else {
             int size = guesstimate_size(offsets, vlen + 1, *ptr);
-            printf("%u: %u {%d} ", id++, *ptr, size);
+            byte* field = fb_buff->table + *ptr;
             
-            if (size == 4) {
-                byte* table_offset_loc = (fb_buff->table + *ptr);
-                int table_offset = *(u16*)table_offset_loc;
+            FlatbufferType type = FIELD_UNKNOWN;
+            
+            printf("%u: <%2.u> {%d} ", i++, *ptr, size);
+            
+            switch(size) {
+            case 1: type = FIELD_U8; break;
+            case 2: type = FIELD_U16; break;
+            case 4: {
+                    // 4 bytes is a special case, it could be a pointer to a table, obect, vector, etc... or just a standard int.
+                    type = FIELD_U32;
+                    
+                    //TODO Check if these are the same and cut down on redundancy for print
+                    printf("Possible Ints U32: %d, S32: %d ", *(u32*)field,  *(s32*)field);
+                    
+                    byte* table_offset_loc = (field);
+                    int table_offset = *(u16*)table_offset_loc;
+                    byte* vec = (table_offset + field); // start of vec, including the 4 byte size header
+                    int vec_size = *(u32*)vec;
+                    
+                    // Generic vec
+                    if (vec_size > 0) {
+                        printf("Possible Vector Size: [%d] ", vec_size);                    
+                    }
+                    
+                    // Try for string
+                    if (strlen(vec+4) == vec_size) { // if cstring length is shorter than expected vec length, then it cant be a string
+                        printf("Possible String: \"%s\" ", vec+4);
+                        type = FIELD_U32_STRING;
+                    }
+                    
+                    // Try for table array
+                                 
+                    break; 
+                }
+            case 8: type = FIELD_U64; break;
+            case 12: { // 12 isnt a standard flatbuffers type, but it can sometimes represent 4 floats: x y z
+                    type = FIELD_UNKNOWN;
                 
-                byte* vec = (table_offset + fb_buff->table + *ptr);
-                int vec_size = *(u32*)vec;
-                
-                printf("Possible String: %s", vec+4);
+                    float x = *(field);
+                    float y = *(field + 4);
+                    float z = *(field + 8);
+                    
+                    printf("Possible Vec3: x: %.1f, y: %.1f, z: %.1f ", x, y, z);
+      
+                    break;
+                }
+            default: type = FIELD_UNKNOWN; break;   
             }
+            
+            fb_buff->types[i] = type;
+            printf("Analyzed Type: %s", flatbuffer_type_name(type));
             
             printf("\n");
         }

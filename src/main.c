@@ -4,7 +4,7 @@
 int main () {
     char* path = "..\\data\\a.bin";
     printf("Hello, Flatminer!\n");
-    printf("Mining: %s", path);
+    printf("Mining |%s|", path);
 
 
     FlatbufferFile* root = malloc(sizeof(FlatbufferFile));
