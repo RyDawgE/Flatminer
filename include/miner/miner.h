@@ -92,7 +92,8 @@ void read_vtable(FlatbufferFile* fb_buff) {
     printf("\nVtable members (%u):\n", num_membs);
 
     int id = 0;
-    while (++ptr < fb_buff->vtable + size) {
+    ptr = ptr+2;
+    while (ptr++ < fb_buff->vtable + size) {
         if (*ptr == 0) {
             printf("%u: default\n", id++);
         } else {

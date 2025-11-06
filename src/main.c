@@ -2,7 +2,7 @@
 #include "miner\miner.h"
 
 int main () {
-    char* path = "..\\data\\a.bin";
+    char* path = "..\\data\\b.bin";
     printf("Hello, Flatminer!\n");
     printf("Mining: %s", path);
 
