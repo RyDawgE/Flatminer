@@ -19,7 +19,7 @@ key_binding:            Ctrl-Alt-Shift-F11
 
 [Build]
 build_command:          build.bat # should be an executable or a script
-key_binding:            Ctrl-B
+key_binding:            Ctrl-Shift-B
 
 [Run]
 run_command:            ./build/flatminer.exe     # will be run if build succeeds
