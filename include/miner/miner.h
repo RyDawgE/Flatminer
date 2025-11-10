@@ -205,6 +205,9 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable fb_table) {
             printf("Possible Ints U32: %d, S32: %d ", *(u32*)field,  *(s32*)field);
 
             byte* vec = (field + *(u32*)field); // start of vec, including the 4 byte size header
+            if (!check_ptr(fb_file, (u8*)vec)) {
+                break; //If this happens, then this is not a pointer to anything. Wow!
+            }
             int vec_size = *(u32*)vec;
 
             // Try for string
@@ -237,7 +240,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable fb_table) {
 
                         break;
                     }
-                    printf("THIS IS NESTED FLATBUFFER ");
+                    //printf("THIS IS NESTED FLATBUFFER ");
 
                     type = FIELD_FLATBUFFER;
                     attempt_nest = 1;
@@ -286,17 +289,17 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable fb_table) {
                     break;
                 }
             case FIELD_FLATBUFFER: {
-                    // FlatbufferFile file = {0};
-                    // file.data = nest_data + 4;
-                    // file.size = *(u32*) nest_data;
+                    FlatbufferFile file = {0};
+                    file.data = nest_data + 4;
+                    file.size = *(u32*) nest_data;
 
-                    // file.root_table.data = file.data + *(u32*)file.data;
-                    // file.root_table.layer = fb_table.layer + 1;
-                    // file.root_table.name = "Root";
+                    file.root_table.data = file.data + *(u32*)file.data;
+                    file.root_table.layer = fb_table.layer + 1;
+                    file.root_table.name = "Root";
 
-                    // analyze_table(&file, file.root_table);
+                    analyze_table(&file, file.root_table);
 
-                    // break;
+                    break;
                 }
             }
         }
