@@ -1,3 +1,8 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <string.h>
+
 int compare_u16(const void *a, const void *b) {
     uint16_t ua = *(const uint16_t *)a;
     uint16_t ub = *(const uint16_t *)b;
@@ -5,10 +10,6 @@ int compare_u16(const void *a, const void *b) {
     if (ua > ub) return 1;
     return 0;
 }
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
 
 // tprint: formats a string like printf and returns a malloc'ed string
 char* tprint(const char* format, ...) {
@@ -29,4 +30,16 @@ char* tprint(const char* format, ...) {
     va_end(args);
 
     return buffer; // caller must free!
+}
+
+void trunc_printf(const char *s) {
+    size_t len = strlen(s);
+
+    if (len > 16) {
+        // Print first 6 chars, then "...", then last 6 chars
+        printf("%.8s...%.8s", s, s + len - 8);
+    } else {
+        // Print string padded on the left so the end aligns to 12 chars
+        printf("%*s", 16, s);
+    }
 }

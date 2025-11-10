@@ -94,11 +94,10 @@ char check_ptr (FlatbufferFile* fb_file, byte* ptr) {
 
 char is_valid_table(FlatbufferFile* fb_file, byte* table_data) {
     if (!check_ptr(fb_file, (u8*)table_data)) { return 0; }
+
     byte* table = table_data;
     byte* vtable_loc;
-    s32 vtable_relative_offset = *(s16*)table;
-
-
+    s32 vtable_relative_offset = *(s32*)table;
 
     vtable_loc = table - vtable_relative_offset;
 
@@ -108,7 +107,6 @@ char is_valid_table(FlatbufferFile* fb_file, byte* table_data) {
 
     if (!check_ptr(fb_file, (u8*)vtable)) { return 0; }
     if (!check_ptr(fb_file, (u8*)vtable+1)) { return 0; }
-
 
     u16 vsize = *(u16*)vtable;
     u16 tsize = *(u16*)(vtable+1);
@@ -157,7 +155,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable fb_table) {
     // setup vtable and table pointers
     byte* table = fb_table.data;
     byte* vtable_loc;
-    s32 vtable_relative_offset = *(s16*)table;
+    s32 vtable_relative_offset = *(s32*)table;
 
 
 
@@ -212,7 +210,10 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable fb_table) {
 
             // Try for string
             if (vec_size > 0 && strlen(vec+4) == vec_size) { // if cstring length is shorter than expected vec length, then it cant be a string
-                printf("Possible String: \"%s\" ", vec+4);
+                // @TODO: should be an arg for displaying full strings. Or maybe one for truncing strings? idfk.
+                printf("Possible String: \"");
+                trunc_printf(vec+4);
+                printf("\" ");
                 type = FIELD_U32_STRING;
                 break;
             }
