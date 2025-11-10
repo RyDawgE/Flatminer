@@ -19,6 +19,10 @@ typedef int64_t   s64;
 
 typedef enum {
     FIELD_UNKNOWN,
+    FIELD_VECTOR,
+    FIELD_OBJ_ARR,
+    FIELD_SCALAR_ARR,
+    FIELD_FLATBUFFER,
     FIELD_TABLE,
     FIELD_U64,
     FIELD_U32,
@@ -50,8 +54,13 @@ const char* flatbuffer_type_name(FlatbufferType t) {
         case FIELD_U16:         return "FIELD_U16";
         case FIELD_U32:         return "FIELD_U32";
         case FIELD_U32_STRING:  return "FIELD_U32_STRING";
+        case FIELD_FLATBUFFER:  return "FIELD_FLATBUFFER";
         case FIELD_U32_PTR:     return "FIELD_U32_PTR";
         case FIELD_U64:         return "FIELD_U64";
+        case FIELD_VECTOR:      return "FIELD_VECTOR";
+        case FIELD_OBJ_ARR:     return "FIELD_OBJ_ARR";
+        case FIELD_SCALAR_ARR:  return "FIELD_SCALAR_ARR";
+
         default:                return "FIELD_UNKNOWN";
     }
 }
@@ -79,6 +88,47 @@ void alloc_flatbuffer(FlatbufferFile* fb_buff, char* path) {
     fclose(fileptr); // Close the file
 }
 
+char check_ptr (FlatbufferFile* fb_file, byte* ptr) {
+    return (ptr > fb_file->data && ptr < fb_file->data + fb_file->size);
+}
+
+char is_valid_table(FlatbufferFile* fb_file, byte* table_data) {
+    if (!check_ptr(fb_file, (u8*)table_data)) { return 0; }
+    byte* table = table_data;
+    byte* vtable_loc;
+    s32 vtable_relative_offset = *(s16*)table;
+
+
+
+    vtable_loc = table - vtable_relative_offset;
+
+    if (!check_ptr(fb_file, (u8*)vtable_loc)) { return 0; }
+
+    u16* vtable = (u16*)vtable_loc;
+
+    if (!check_ptr(fb_file, (u8*)vtable)) { return 0; }
+    if (!check_ptr(fb_file, (u8*)vtable+1)) { return 0; }
+
+
+    u16 vsize = *(u16*)vtable;
+    u16 tsize = *(u16*)(vtable+1);
+    u16* vdat = vtable + 2;
+
+    u16 element_count = (vsize - 4) / 2;
+
+    //printf("%d / %d ", vtable_relative_offset, vsize);
+    char vtable_safe = (vdat > fb_file->data && vdat < fb_file->data + fb_file->size);
+    char table_safe  = (table > fb_file->data && table < fb_file->data + fb_file->size);
+
+    for (u16 i = 0; i < element_count; i++) {
+        byte* field = table + vdat[i];
+        if (!check_ptr(fb_file, field)) { return 0; }
+    }
+
+
+    return (vsize > 0 && vtable_safe && table_safe);
+}
+
 char guesstimate_size(u16* membs, int num_membs, u16 offset) {
     if (!membs) { return -1; }
 
@@ -95,10 +145,14 @@ char guesstimate_size(u16* membs, int num_membs, u16 offset) {
     return -1;
 }
 
-//byte is_valid_table(FlatbufferTable fb_table)
-
 void analyze_table(FlatbufferFile* fb_file, FlatbufferTable fb_table) {
-    printf("Analyzing Table: %s\n", fb_table.name);
+    printf("%*s", fb_table.layer*8, "");
+    printf("Analyzing Table %s\n", fb_table.name);
+
+    if (!is_valid_table(fb_file, fb_table.data)) {
+        printf("BAD TABLE\n");
+        return;
+    }
 
     // setup vtable and table pointers
     byte* table = fb_table.data;
@@ -117,10 +171,6 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable fb_table) {
     u16 tsize = *(u16*)(vtable+1);
     u16* vdat = vtable + 2;
 
-
-    printf("VTable Size: %d bytes\n", vsize);
-    printf("Table Size:  %d bytes\n", tsize);
-
     u16 element_count = (vsize - 4) / 2;
 
     u16* offsets = malloc((vsize - 2));
@@ -130,11 +180,14 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable fb_table) {
     fb_table.types = malloc((vsize - 2) * sizeof(FlatbufferType));
 
     for (u16 i = 0; i < element_count; i++) {
-        printf("%*s%u: ", fb_table.layer*2, "", i);
+        printf("%*s%u: ", fb_table.layer*8, "", i);
 
         byte* field = table + vdat[i];
         int size = guesstimate_size(offsets, element_count + 1, vdat[i]);
         FlatbufferType type = FIELD_UNKNOWN;
+
+        char attempt_nest = 0;
+        byte* nest_data = NULL;
 
         if (size == 0) {
             printf("default\n");
@@ -163,24 +216,42 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable fb_table) {
 
             // Generic vec
             if (vec_size > 0) {
-                byte* first_offset = vec + 4 +(13*4);
+                type = FIELD_VECTOR;
+                printf("Possible Vector Size: [%u] ", vec_size);
+                byte* first_offset = vec + 4;
+                byte* first_table  = first_offset + *(u32*)first_offset;
+                byte* last_offset  = vec + 4 + 4 * (vec_size - 1);
+                byte* last_table   = last_offset + *(u32*)last_offset;
 
-                byte* first_table = first_offset + *(u32*)first_offset;
 
-                if (first_table < fb_file->data || first_table >= fb_table.data + fb_file->size) {
-                    break;
+                // /printf("Could be Object[] ");
+                // printf("FIRST TABLE: %X ", first_table - fb_file->data);
+                // printf("LAST  TABLE: %X ", last_table - fb_file->data);
+
+                if (is_valid_table(fb_file, first_table)) {
+                    if (is_valid_table(fb_file, last_table)) {
+
+                        type = FIELD_OBJ_ARR;
+                        attempt_nest = 1;
+                        nest_data = first_table;
+
+                        break;
+                    }
+                    printf("THIS IS NESTED FLATBUFFER ");
+
+                    type = FIELD_FLATBUFFER;
+                    attempt_nest = 1;
+                    nest_data = vec;
+
                 }
 
-                // FlatbufferTable sub = {0};
-                // sub.data = first_table + *(u32*)first_table;
-                // sub.layer = fb_table.layer + 1;
-                // sub.name = tprint("Unnamed Table %u", sub.layer);
-                // analyze_table(fb_file, sub);
-
-                // free(sub.name);
             }
+            break;
         }
-        case 8: type = FIELD_U64; break;
+        case 8: {
+                type = FIELD_U64; break;
+            }
+
         case 12: { // 12 isnt a standard flatbuffers type, but it can sometimes represent 4 floats: x y z
                 type = FIELD_UNKNOWN;
 
@@ -196,10 +267,39 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable fb_table) {
         }
 
         fb_table.types[i] = type;
-        printf("Analyzed Type: %s", flatbuffer_type_name(type));
+        printf("Global Offset: %X ", field - fb_file->data);
+        printf("Analyzed Type: %s ", flatbuffer_type_name(type));
+
 
         printf("\n");
 
+        if (attempt_nest) {
+            switch(type) {
+            case FIELD_OBJ_ARR: {
+                    FlatbufferTable sub = {0};
+                    sub.data = nest_data;
+                    sub.layer = fb_table.layer + 1;
+                    sub.name = tprint("Unnamed Table %u", sub.layer);
+                    analyze_table(fb_file, sub);
+
+                    free(sub.name);
+                    break;
+                }
+            case FIELD_FLATBUFFER: {
+                    // FlatbufferFile file = {0};
+                    // file.data = nest_data + 4;
+                    // file.size = *(u32*) nest_data;
+
+                    // file.root_table.data = file.data + *(u32*)file.data;
+                    // file.root_table.layer = fb_table.layer + 1;
+                    // file.root_table.name = "Root";
+
+                    // analyze_table(&file, file.root_table);
+
+                    // break;
+                }
+            }
+        }
     }
     free(offsets);
 }
