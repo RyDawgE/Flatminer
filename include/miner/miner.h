@@ -283,7 +283,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable fb_table) {
                     FlatbufferTable sub = {0};
                     sub.data = nest_data;
                     sub.layer = fb_table.layer + 1;
-                    sub.name = tprint("Unnamed Table %u", sub.layer);
+                    sub.name = tprint("Unnamed %u at Index 0", sub.layer);
                     analyze_table(fb_file, sub);
 
                     free(sub.name);
