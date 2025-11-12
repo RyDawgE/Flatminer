@@ -18,6 +18,7 @@ typedef uint64_t  u64;
 typedef int64_t   s64;
 
 typedef enum {
+    FIELD_DEFAULT,
     FIELD_UNKNOWN,
     FIELD_VECTOR,
     FIELD_OBJ_ARR,
@@ -67,6 +68,8 @@ const char* flatbuffer_type_name(FlatbufferType t) {
         case FIELD_U64:         return "FIELD_U64";
         case FIELD_VECTOR:      return "FIELD_VECTOR";
         case FIELD_OBJ_ARR:     return "FIELD_OBJ_ARR";
+        case FIELD_VEC3:        return "FIELD_VEC3";
+        case FIELD_DEFAULT:     return "FIELD_DEFAULT";
 
         default:                return "FIELD_UNKNOWN";
     }
@@ -84,8 +87,9 @@ const char* flatbuffer_type_builder(FlatbufferType t) {
         case FIELD_VECTOR:      return "[int]"; //TODO THIS MIGHT NOT BE RIGHT
         case FIELD_OBJ_ARR:     return "[%s]";
         case FIELD_VEC3:        return "Vec3f";
+        case FIELD_DEFAULT:     return "int /* Default */";
 
-        default:                return "UNKNOWN_TYPE";
+        default:                return "int /* Unknown type size: %s */";
     }
 }
 
@@ -213,7 +217,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
 
         if (size == 0) {
             printf("default\n");
-            type = FIELD_U32;
+            type = FIELD_DEFAULT;
             fb_table->field_names[i] = tprint("default_unk%u", i);
             continue;
 
@@ -234,14 +238,6 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
                 break; //If this happens, then this is not a pointer to anything. Wow!
             }
 
-            // Try for regular object ptr
-            if (is_valid_table(fb_file, vec)) {
-                type = FIELD_U32_PTR;
-                attempt_nest = 1;
-                nest_data = vec;
-                break;
-            }
-
             // Try for string
             int vec_size = *(u32*)vec;
             if (vec_size >= 0 && strlen(vec+4) == vec_size) { // if cstring length is shorter than expected vec length, then it cant be a string
@@ -252,6 +248,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
                 type = FIELD_U32_STRING;
                 break;
             }
+
 
             // Generic vec
             if (vec_size >= 0) {
@@ -281,9 +278,17 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
                     type = FIELD_FLATBUFFER;
                     attempt_nest = 1;
                     nest_data = vec;
-
+                    break;
                 }
 
+            }
+
+            //Try for regular object ptr
+            if (is_valid_table(fb_file, vec)) {
+                type = FIELD_U32_PTR;
+                attempt_nest = 1;
+                nest_data = vec;
+                break;
             }
             break;
         }
@@ -294,7 +299,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
         case 12: { // 12 isnt a standard flatbuffers type, but it can sometimes represent 4 floats: x y z
                 type = FIELD_VEC3;
 
-                byte* f = field;
+                float* f = (float*)field;
 
                 float x = *f;
                 float y = *++f;
@@ -306,7 +311,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
                 break;
         }
 
-        default: {} break;
+        default: { type = FIELD_UNKNOWN; } break;
         }
 
         fb_table->field_types[i] = type;
@@ -404,6 +409,10 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
                 table_name_str = (fb_table->field_data[i-1] + *(u32*)(fb_table->field_data[i-1])) + 4;
 
             }
+        }
+
+        if (type == FIELD_UNKNOWN) {
+            table_name_str = "69420 pls implement";
         }
 
         fprintf(file, "  %s: %s;\n",

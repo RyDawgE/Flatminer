@@ -20,7 +20,7 @@ int main () {
     analyze_table(file, &file->root_table);
 
     FlatbufferTable* tbl = &file->root_table;
-    generate_schema(file, tbl);
+    //generate_schema(file, tbl);
 
 
     free(file);
