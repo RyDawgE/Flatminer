@@ -43,3 +43,18 @@ void trunc_printf(const char *s) {
         printf("%*s", 16, s);
     }
 }
+
+void get_filename(char *path, char *out) {
+    // Find last slash or backslash
+    char *slash = strrchr(path, '/');
+    if (!slash) slash = strrchr(path, '\\'); // Windows paths
+
+    char *filename = slash ? slash + 1 : path;
+
+    // Copy to output so we can modify
+    strcpy(out, filename);
+
+    // Remove extension if present
+    char *dot = strrchr(out, '.');
+    if (dot) *dot = '\0';
+}
