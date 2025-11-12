@@ -28,6 +28,7 @@ typedef enum {
     FIELD_U32,
     FIELD_U32_PTR,
     FIELD_U32_STRING,
+    FIELD_VEC3,
     FIELD_U16,
     FIELD_U8
 } FlatbufferType;
@@ -66,7 +67,6 @@ const char* flatbuffer_type_name(FlatbufferType t) {
         case FIELD_U64:         return "FIELD_U64";
         case FIELD_VECTOR:      return "FIELD_VECTOR";
         case FIELD_OBJ_ARR:     return "FIELD_OBJ_ARR";
-        case FIELD_SCALAR_ARR:  return "FIELD_SCALAR_ARR";
 
         default:                return "FIELD_UNKNOWN";
     }
@@ -83,9 +83,9 @@ const char* flatbuffer_type_builder(FlatbufferType t) {
         case FIELD_U64:         return "long";
         case FIELD_VECTOR:      return "[int]"; //TODO THIS MIGHT NOT BE RIGHT
         case FIELD_OBJ_ARR:     return "[%s]";
-        case FIELD_SCALAR_ARR:  return "[%s]";
+        case FIELD_VEC3:        return "Vec3f";
 
-        default:                return "int";
+        default:                return "UNKNOWN_TYPE";
     }
 }
 
@@ -213,9 +213,10 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
 
         if (size == 0) {
             printf("default\n");
+            type = FIELD_U32;
             fb_table->field_names[i] = tprint("default_unk%u", i);
-
             continue;
+
         }
         printf("{%2u} ", size);
         switch(size) {
@@ -226,7 +227,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
             type = FIELD_U32;
 
             //TODO Check if these are the same and cut down on redundancy for print
-            printf("Possible Ints U32: %d, S32: %d ", *(u32*)field,  *(s32*)field);
+            printf("Possible Ints U32: %u, S32: %d ", *(u32*)field,  *(s32*)field);
 
             byte* vec = (field + *(u32*)field); // start of vec, including the 4 byte size header
             if (!check_ptr(fb_file, (u8*)vec)) {
@@ -243,7 +244,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
 
             // Try for string
             int vec_size = *(u32*)vec;
-            if (vec_size > 0 && strlen(vec+4) == vec_size) { // if cstring length is shorter than expected vec length, then it cant be a string
+            if (vec_size >= 0 && strlen(vec+4) == vec_size) { // if cstring length is shorter than expected vec length, then it cant be a string
                 // @TODO: should be an arg for displaying full strings. Or maybe one for truncing strings? idfk.
                 printf("Possible String: \"");
                 trunc_printf(vec+4);
@@ -253,7 +254,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
             }
 
             // Generic vec
-            if (vec_size > 0) {
+            if (vec_size >= 0) {
                 type = FIELD_VECTOR;
                 printf("Possible Vector Size: [%u] ", vec_size);
                 byte* first_offset = vec + 4;
@@ -291,11 +292,13 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
         }
 
         case 12: { // 12 isnt a standard flatbuffers type, but it can sometimes represent 4 floats: x y z
-                type = FIELD_UNKNOWN;
+                type = FIELD_VEC3;
 
-                float x = *(field);
-                float y = *(field + 4);
-                float z = *(field + 8);
+                byte* f = field;
+
+                float x = *f;
+                float y = *++f;
+                float z = *++f;
 
                 printf("Possible Vec3: x: %.1f, y: %.1f, z: %.1f ", x, y, z);
 
@@ -303,7 +306,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
                 break;
         }
 
-        default: type = FIELD_UNKNOWN; break;
+        default: {} break;
         }
 
         fb_table->field_types[i] = type;
@@ -363,15 +366,10 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
             }
         }
     }
-
-    // for (int j = 0; j < fb_table.num_fields; j++) {
-    //     printf("%s\n", fb_table.field_names[j]);
-    // }
-
     // free(offsets);
-    // free(fb_table.field_names);
-    // free(fb_table.field_types);
-    // free(fb_table.field_data);
+    // free(fb_table->field_names);
+    // free(fb_table->field_types);
+    // free(fb_table->field_data);
 }
 
 
@@ -388,6 +386,7 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
 
     // Collect includes in memory first
     char includes[4096] = {0};
+    strcat(includes, "include \"common.fbs\";\n");
 
     fprintf(file, "table %s {\n", fb_table->name);
 
