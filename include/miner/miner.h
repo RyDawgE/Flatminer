@@ -81,7 +81,7 @@ const char* flatbuffer_type_builder(FlatbufferType t) {
         case FIELD_FLATBUFFER:  return "[ubyte] (nested_flatbuffer:\"%s\")";
         case FIELD_U32_PTR:     return "%s";
         case FIELD_U64:         return "long";
-        case FIELD_VECTOR:      return "[%s]";
+        case FIELD_VECTOR:      return "[int]"; //TODO THIS MIGHT NOT BE RIGHT
         case FIELD_OBJ_ARR:     return "[%s]";
         case FIELD_SCALAR_ARR:  return "[%s]";
 
@@ -152,11 +152,6 @@ char is_valid_table(FlatbufferFile* fb_file, byte* table_data) {
     return (vsize > 0 && vtable_safe && table_safe);
 }
 
-void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
-    if (!fb_file || !fb_table) { return; }
-    if (!is_valid_table(fb_file, fb_table->data)) { return; }
-};
-
 char guesstimate_size(u16* membs, int num_membs, u16 offset) {
     if (!membs) { return -1; }
 
@@ -218,7 +213,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
 
         if (size == 0) {
             printf("default\n");
-            fb_table->field_names[i] = tprint("DefaultUnk%u", i);
+            fb_table->field_names[i] = tprint("default_unk%u", i);
 
             continue;
         }
@@ -237,9 +232,17 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
             if (!check_ptr(fb_file, (u8*)vec)) {
                 break; //If this happens, then this is not a pointer to anything. Wow!
             }
-            int vec_size = *(u32*)vec;
+
+            // Try for regular object ptr
+            if (is_valid_table(fb_file, vec)) {
+                type = FIELD_U32_PTR;
+                attempt_nest = 1;
+                nest_data = vec;
+                break;
+            }
 
             // Try for string
+            int vec_size = *(u32*)vec;
             if (vec_size > 0 && strlen(vec+4) == vec_size) { // if cstring length is shorter than expected vec length, then it cant be a string
                 // @TODO: should be an arg for displaying full strings. Or maybe one for truncing strings? idfk.
                 printf("Possible String: \"");
@@ -296,6 +299,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
 
                 printf("Possible Vec3: x: %.1f, y: %.1f, z: %.1f ", x, y, z);
 
+                fb_table->field_names[i]   = "pos";
                 break;
         }
 
@@ -304,7 +308,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
 
         fb_table->field_types[i] = type;
         fb_table->field_data[i]  = field;
-        fb_table->field_names[i] = tprint("Unk%u", i);
+        fb_table->field_names[i] = tprint("unk%u", i);
 
         printf("Global Offset: %X ", field - fb_file->data);
         printf("Analyzed Type: %s ", flatbuffer_type_name(type));
@@ -316,7 +320,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
                         FlatbufferTable sub = {0};
                         sub.data = nest_data;
                         sub.layer = fb_table->layer + 1;
-                        sub.name = tprint("Unnamed %u at Index 0", sub.layer);
+                        sub.name = tprint("Unnamed_%u_at_Index_0", sub.layer);
                         analyze_table(fb_file, &sub);
 
                         free(sub.name);
@@ -336,11 +340,24 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
                             if (prev_type == FIELD_U32_STRING) {
                                 char* field_str = fb_table->field_data[i-1] + *(u32*)(fb_table->field_data[i-1]);
                                 file.root_table.name = field_str+4;
+
+                                fb_table->field_names[i-1] = "type_name";
+                                fb_table->field_names[i]   = "nested_type";
                             }
                         }
 
                         analyze_table(&file, &file.root_table);
 
+                        break;
+                }
+                case FIELD_U32_PTR: {
+                        FlatbufferTable sub = {0};
+                        sub.data = nest_data;
+                        sub.layer = fb_table->layer + 1;
+                        sub.name = tprint("Unnamed_%u", sub.layer);
+                        analyze_table(fb_file, &sub);
+
+                        free(sub.name);
                         break;
                 }
             }
@@ -358,3 +375,112 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
 }
 
 
+void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
+    if (!fb_file || !fb_table) return;
+    if (!is_valid_table(fb_file, fb_table->data)) return;
+
+    // Open file fresh each time (overwrite)
+    FILE *file = fopen(tprint("%s.fbs", fb_table->name), "w");
+    if (!file) {
+        perror("Error creating file");
+        return;
+    }
+
+    // Collect includes in memory first
+    char includes[4096] = {0};
+
+    fprintf(file, "table %s {\n", fb_table->name);
+
+    for (int i = 0; i < fb_table->num_fields; i++) {
+        FlatbufferType type = fb_table->field_types[i];
+        char* field         = fb_table->field_data[i];
+        char* name          = fb_table->field_names[i];
+
+        char* table_name_str = tprint("%s_%u", fb_table->name, i);
+
+        // Check for named fb types
+        if (i-1 >= 0) {
+            FlatbufferType prev_type = fb_table->field_types[i-1];
+            if (prev_type == FIELD_U32_STRING && type == FIELD_FLATBUFFER) {
+                table_name_str = (fb_table->field_data[i-1] + *(u32*)(fb_table->field_data[i-1])) + 4;
+
+            }
+        }
+
+        fprintf(file, "  %s: %s;\n",
+                name,
+                tprint(flatbuffer_type_builder(type), table_name_str));
+
+        if (type == FIELD_FLATBUFFER) {
+            byte* vec = field + *(u32*)field;
+
+            FlatbufferFile file = {0};
+            file.data = vec + 4;
+            file.size = *(u32*)vec;
+
+            file.root_table.data = file.data + *(u32*)file.data;
+            file.root_table.layer = fb_table->layer + 1;
+            file.root_table.name = table_name_str;
+
+            analyze_table(&file, &file.root_table);
+            generate_schema(fb_file, &file.root_table);
+
+
+            // Save include line to prepend later
+            strcat(includes, tprint("include \"%s.fbs\";\n", table_name_str));
+        }
+
+        if (type == FIELD_OBJ_ARR) {
+            byte* vec = field + *(u32*)field;
+            byte* first_offset = vec + 4;
+            byte* first_table  = first_offset + *(u32*)first_offset;
+
+            FlatbufferTable sub = {0};
+            sub.data = first_table;
+            sub.layer = 0;
+            sub.name = table_name_str;
+
+            analyze_table(fb_file, &sub);
+            generate_schema(fb_file, &sub);
+
+            // Save include line to prepend later
+            strcat(includes, tprint("include \"%s.fbs\";\n", table_name_str));
+        }
+
+        if (type == FIELD_U32_PTR) {
+            FlatbufferTable sub = {0};
+            sub.data = field + *(u32*)field;
+            sub.layer = 0;
+            sub.name = table_name_str;
+
+            analyze_table(fb_file, &sub);
+            generate_schema(fb_file, &sub);
+
+            // Save include line to prepend later
+            strcat(includes, tprint("include \"%s.fbs\";\n", table_name_str));
+        }
+    }
+
+    fprintf(file, "}\nroot_type %s;\n", fb_table->name);
+    fclose(file);
+
+    // Reopen and prepend includes cleanly
+    if (strlen(includes) > 0) {
+        FILE *original = fopen(tprint("%s.fbs", fb_table->name), "r");
+        FILE *temp = fopen("temp.fbs", "w");
+
+        fprintf(temp, "%s\n", includes);
+        char buffer[1024];
+        size_t n;
+        while ((n = fread(buffer, 1, sizeof(buffer), original)) > 0)
+            fwrite(buffer, 1, n, temp);
+
+        fclose(original);
+        fclose(temp);
+
+        remove(tprint("%s.fbs", fb_table->name));
+        rename("temp.fbs", tprint("%s.fbs", fb_table->name));
+    }
+
+    printf("File %s created successfully.\n", fb_table->name);
+}
