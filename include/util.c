@@ -44,17 +44,20 @@ void trunc_printf(const char *s) {
     }
 }
 
-void get_filename(char *path, char *out) {
+void get_filename(const char *path, char *out, size_t out_size) {
+    if (!path || !out || out_size == 0) return;
+
     // Find last slash or backslash
-    char *slash = strrchr(path, '/');
-    if (!slash) slash = strrchr(path, '\\'); // Windows paths
+    const char *slash = strrchr(path, '/');
+    if (!slash) slash = strrchr(path, '\\');
 
-    char *filename = slash ? slash + 1 : path;
+    const char *filename = slash ? slash + 1 : path;
 
-    // Copy to output so we can modify
-    strcpy(out, filename);
+    // Copy filename safely
+    strncpy(out, filename, out_size - 1);
+    out[out_size - 1] = '\0';
 
-    // Remove extension if present
+    // Remove extension
     char *dot = strrchr(out, '.');
     if (dot) *dot = '\0';
 }

@@ -12,15 +12,15 @@ int main () {
     file->root_table.data = file->data + *(u32*)file->data;
     file->root_table.layer = 0;
 
-    char* table_name;
-    get_filename(path, table_name);
-
+    char table_name[260];
+    get_filename(path, table_name, sizeof(table_name));
+    
     file->root_table.name = table_name;
 
     analyze_table(file, &file->root_table);
 
     FlatbufferTable* tbl = &file->root_table;
-    //generate_schema(file, tbl);
+    generate_schema(file, tbl);
 
 
     free(file);
