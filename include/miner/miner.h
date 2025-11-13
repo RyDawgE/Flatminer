@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <ctype.h>
 #include "util.c"
 
 #define byte unsigned char
@@ -238,9 +239,16 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
                 break; //If this happens, then this is not a pointer to anything. Wow!
             }
 
+            //Try for regular object ptr
+            if (is_valid_table(fb_file, vec)) {
+                type = FIELD_U32_PTR;
+                attempt_nest = 1;
+                nest_data = vec;
+            }
+
             // Try for string
             int vec_size = *(u32*)vec;
-            if (vec_size >= 0 && strlen(vec+4) == vec_size) { // if cstring length is shorter than expected vec length, then it cant be a string
+            if (vec_size > 0 && strlen(vec+4) == vec_size) { // if cstring length is shorter than expected vec length, then it cant be a string
                 // @TODO: should be an arg for displaying full strings. Or maybe one for truncing strings? idfk.
                 printf("Possible String: \"");
                 trunc_printf(vec+4);
@@ -250,8 +258,9 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
             }
 
 
+
             // Generic vec
-            if (vec_size >= 0) {
+            if (vec_size > 0) {
                 type = FIELD_VECTOR;
                 printf("Possible Vector Size: [%u] ", vec_size);
                 byte* first_offset = vec + 4;
@@ -280,16 +289,8 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
                     nest_data = vec;
                     break;
                 }
-
             }
 
-            //Try for regular object ptr
-            if (is_valid_table(fb_file, vec)) {
-                type = FIELD_U32_PTR;
-                attempt_nest = 1;
-                nest_data = vec;
-                break;
-            }
             break;
         }
         case 8: {
@@ -402,11 +403,19 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
 
         char* table_name_str = tprint("%s_%u", fb_table->name, i);
 
-        // Check for named fb types
+        // Check for named fb types. If the previous field was a string, it probably
+        // Denotes the schema name.
         if (i-1 >= 0) {
             FlatbufferType prev_type = fb_table->field_types[i-1];
             if (prev_type == FIELD_U32_STRING && type == FIELD_FLATBUFFER) {
+
                 table_name_str = (fb_table->field_data[i-1] + *(u32*)(fb_table->field_data[i-1])) + 4;
+
+                // If table name is hashed it might start with a number,
+                // which flatbuffer doesnt like, so insert a _
+                if (isdigit(table_name_str[0])) {
+                    table_name_str = tprint("_%s", table_name_str);
+                }
 
             }
         }
@@ -415,6 +424,7 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
             table_name_str = "69420 pls implement";
         }
 
+        // 
         fprintf(file, "  %s: %s;\n",
                 name,
                 tprint(flatbuffer_type_builder(type), table_name_str));
