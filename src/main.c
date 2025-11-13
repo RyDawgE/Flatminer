@@ -14,7 +14,7 @@ int main () {
 
     char table_name[260];
     get_filename(path, table_name, sizeof(table_name));
-    
+
     file->root_table.name = table_name;
 
     analyze_table(file, &file->root_table);
@@ -22,7 +22,7 @@ int main () {
     FlatbufferTable* tbl = &file->root_table;
     generate_schema(file, tbl);
 
-
+    free_table(tbl);
     free(file);
 
     return 0;

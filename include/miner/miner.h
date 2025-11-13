@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <ctype.h>
+#include <sys/stat.h>
 #include "util.c"
 
 #define byte unsigned char
@@ -116,6 +117,12 @@ void alloc_flatbuffer(FlatbufferFile* fb_buff, char* path) {
     fb_buff->data = (char *)malloc(filelen * sizeof(char)); // Enough memory for the file
     fread(fb_buff->data, 1, filelen, fileptr); // Read in the entire file
     fclose(fileptr); // Close the file
+}
+
+void free_table(FlatbufferTable* fb_table) {
+    free(fb_table->field_names);
+    free(fb_table->field_types);
+    free(fb_table->field_data);
 }
 
 char check_ptr (FlatbufferFile* fb_file, byte* ptr) {
@@ -333,6 +340,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
                         analyze_table(fb_file, &sub);
 
                         free(sub.name);
+                        free_table(&sub);
                         break;
                 }
                 case FIELD_FLATBUFFER: {
@@ -357,6 +365,9 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
 
                         analyze_table(&file, &file.root_table);
 
+
+                        free_table(&file.root_table);
+
                         break;
                 }
                 case FIELD_U32_PTR: {
@@ -372,10 +383,7 @@ void analyze_table(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
             }
         }
     }
-    // free(offsets);
-    // free(fb_table->field_names);
-    // free(fb_table->field_types);
-    // free(fb_table->field_data);
+    free(offsets);
 }
 
 
@@ -384,7 +392,8 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
     if (!is_valid_table(fb_file, fb_table->data)) return;
 
     // Open file fresh each time (overwrite)
-    FILE *file = fopen(tprint("%s.fbs", fb_table->name), "w");
+    mkdir("schemas");
+    FILE *file = fopen(tprint(".\\schemas\\%s.fbs", fb_table->name), "w");
     if (!file) {
         perror("Error creating file");
         return;
@@ -424,7 +433,7 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
             table_name_str = "69420 pls implement";
         }
 
-        // 
+        //
         fprintf(file, "  %s: %s;\n",
                 name,
                 tprint(flatbuffer_type_builder(type), table_name_str));
@@ -476,6 +485,8 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
 
             // Save include line to prepend later
             strcat(includes, tprint("include \"%s.fbs\";\n", table_name_str));
+
+            free_table(&sub);
         }
     }
 
