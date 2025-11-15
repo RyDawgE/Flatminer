@@ -83,7 +83,7 @@ const char* flatbuffer_type_builder(FlatbufferType t) {
         case FIELD_U16:         return "short";
         case FIELD_U32:         return "int";
         case FIELD_U32_STRING:  return "string";
-        case FIELD_FLATBUFFER:  return "[ubyte] (nested_flatbuffer:\"%s\")";
+        case FIELD_FLATBUFFER:  return "[ubyte];// (nested_flatbuffer:\"%s\")";
         case FIELD_U32_PTR:     return "%s";
         case FIELD_U64:         return "long";
         case FIELD_VECTOR:      return "[int]"; //TODO THIS MIGHT NOT BE RIGHT
@@ -442,7 +442,7 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
             byte* vec = field + *(u32*)field;
 
             FlatbufferFile file = {0};
-            file.data = vec + 4;
+            file.data = vec;
             file.size = *(u32*)vec;
 
             file.root_table.data = file.data + *(u32*)file.data;
@@ -452,7 +452,6 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
             analyze_table(&file, &file.root_table);
             generate_schema(fb_file, &file.root_table);
 
-
             // Save include line to prepend later
             strcat(includes, tprint("include \"%s.fbs\";\n", table_name_str));
         }
@@ -461,6 +460,9 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
             byte* vec = field + *(u32*)field;
             byte* first_offset = vec + 4;
             byte* first_table  = first_offset + *(u32*)first_offset;
+            int   vec_length = *(u32*)vec;
+
+
 
             FlatbufferTable sub = {0};
             sub.data = first_table;
@@ -486,7 +488,7 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
             // Save include line to prepend later
             strcat(includes, tprint("include \"%s.fbs\";\n", table_name_str));
 
-            free_table(&sub);
+            //free_table(&sub);
         }
     }
 
@@ -495,8 +497,8 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
 
     // Reopen and prepend includes cleanly
     if (strlen(includes) > 0) {
-        FILE *original = fopen(tprint("%s.fbs", fb_table->name), "r");
-        FILE *temp = fopen("temp.fbs", "w");
+        FILE *original = fopen(tprint(".\\schemas\\%s.fbs", fb_table->name), "r");
+        FILE *temp = fopen(".\\schemas\\temp.fbs", "w");
 
         fprintf(temp, "%s\n", includes);
         char buffer[1024];
@@ -507,9 +509,9 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
         fclose(original);
         fclose(temp);
 
-        remove(tprint("%s.fbs", fb_table->name));
-        rename("temp.fbs", tprint("%s.fbs", fb_table->name));
+        remove(tprint(".\\schemas\\%s.fbs", fb_table->name));
+        rename(".\\schemas\\temp.fbs", tprint(".\\schemas\\%s.fbs", fb_table->name));
     }
 
-    printf("File %s created successfully.\n", fb_table->name);
+    printf("File \\schemas\\%s.fbs created successfully.\n", fb_table->name);
 }
