@@ -61,3 +61,19 @@ void get_filename(const char *path, char *out, size_t out_size) {
     char *dot = strrchr(out, '.');
     if (dot) *dot = '\0';
 }
+
+// checks if schema already exists (simple heuristic: file exists)
+char schema_exists(const char* name) {
+    char path[256];
+    snprintf(path, sizeof(path), "%s.fbs", name);
+    FILE* f = fopen(path, "r");
+    if (f) { fclose(f); return 1; }
+    return 0;
+}
+
+// checks if include already added to the include buffer
+char include_exists(const char* includes, const char* name) {
+    char needle[256];
+    snprintf(needle, sizeof(needle), "include \"%s.fbs\";", name);
+    return strstr(includes, needle) != NULL;
+}

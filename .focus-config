@@ -14,7 +14,7 @@ auto_jump_to_error:     true
 
 [Debug Build And Run]
 build_command:          build.bat # should be an executable or a script
-run_command:            ./build/flatminer.exe     # will be run if build succeeds
+run_command:            ./build/flatminer.exe "..\data\a.bin"    # will be run if build succeeds
 key_binding:            Ctrl-Alt-Shift-F11
 
 [Build]
@@ -22,7 +22,7 @@ build_command:          build.bat # should be an executable or a script
 key_binding:            Ctrl-Shift-B
 
 [Run]
-run_command:            ./build/flatminer.exe     # will be run if build succeeds
+run_command:            ./build/flatminer.exe "..\data\a.bin"    # will be run if build succeeds
 key_binding:            F5
 
 

@@ -430,7 +430,7 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
         }
 
         if (type == FIELD_UNKNOWN) {
-            table_name_str = "69420 pls implement";
+            table_name_str = "TODO";
         }
 
         //
@@ -442,7 +442,7 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
             byte* vec = field + *(u32*)field;
 
             FlatbufferFile file = {0};
-            file.data = vec;
+            file.data = vec + 4;
             file.size = *(u32*)vec;
 
             file.root_table.data = file.data + *(u32*)file.data;
@@ -462,18 +462,26 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
             byte* first_table  = first_offset + *(u32*)first_offset;
             int   vec_length = *(u32*)vec;
 
+            for (int i = 0; i < vec_length; i++) {
+                byte* table_offset = first_offset + ( i * sizeof(u32) );
+                byte* table  = table_offset + *(u32*)table_offset;
 
+                if (is_valid_table(fb_file, table)) {
+                    FlatbufferTable sub = {0};
+                    sub.data = table;
+                    sub.layer = 0;
+                    sub.name = table_name_str;
 
-            FlatbufferTable sub = {0};
-            sub.data = first_table;
-            sub.layer = 0;
-            sub.name = table_name_str;
+                    analyze_table(fb_file, &sub);
+                    generate_schema(fb_file, &sub);
 
-            analyze_table(fb_file, &sub);
-            generate_schema(fb_file, &sub);
+                    // Save include line to prepend later
+                    if (!include_exists(includes, table_name_str)) {
+                        strcat(includes, tprint("include \"%s.fbs\";\n", table_name_str));
 
-            // Save include line to prepend later
-            strcat(includes, tprint("include \"%s.fbs\";\n", table_name_str));
+                    }
+                }
+            }
         }
 
         if (type == FIELD_U32_PTR) {
@@ -488,7 +496,6 @@ void generate_schema(FlatbufferFile* fb_file, FlatbufferTable* fb_table) {
             // Save include line to prepend later
             strcat(includes, tprint("include \"%s.fbs\";\n", table_name_str));
 
-            //free_table(&sub);
         }
     }
 

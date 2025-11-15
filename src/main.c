@@ -2,8 +2,17 @@
 #include "miner\miner.h"
 
 
-int main () {
+int main(int argc, char *argv[]) {
     char* path = "..\\data\\a.bin";
+
+    if (argc < 2) {
+        printf("ERROR: Please provide a valid filepath\n");
+        return -1;
+    } else {
+        path = argv[1];
+    }
+    
+
     printf("Hello, Flatminer!\n");
     printf("Mining |%s|\n", path);
 
