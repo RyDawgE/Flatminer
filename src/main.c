@@ -16,14 +16,13 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < argc; i++) {
         char* arg = argv[i];
 
-        if (strcmp(arg, "-ao")) {
+        if (strcmp(arg, "-ao") == 0) {
             generate_schemas = 0;
         }
-
     }
 
     printf("Hello, Flatminer!\n");
-    printf("Mining |%s|\n", path);
+    printf("Mining %s\n", path);
 
     FlatbufferFile* file = malloc(sizeof(FlatbufferFile));
     alloc_flatbuffer(file, path);
