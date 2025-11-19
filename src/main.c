@@ -4,6 +4,7 @@
 
 int main(int argc, char *argv[]) {
     char* path = "..\\data\\a.bin";
+    char generate_schemas = 1;
 
     if (argc < 2) {
         printf("ERROR: Please provide a valid filepath\n");
@@ -11,7 +12,15 @@ int main(int argc, char *argv[]) {
     } else {
         path = argv[1];
     }
-    
+
+    for (int i = 0; i < argc; i++) {
+        char* arg = argv[i];
+
+        if (strcmp(arg, "-ao")) {
+            generate_schemas = 0;
+        }
+
+    }
 
     printf("Hello, Flatminer!\n");
     printf("Mining |%s|\n", path);
@@ -29,7 +38,10 @@ int main(int argc, char *argv[]) {
     analyze_table(file, &file->root_table);
 
     FlatbufferTable* tbl = &file->root_table;
-    generate_schema(file, tbl);
+
+    if (generate_schemas == 1) {
+        generate_schema(file, tbl);
+    }
 
     free_table(tbl);
     free(file);
