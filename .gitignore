@@ -1,3 +1,5 @@
 /build
 *.exe
 build/flatminer.exe
+
+*.hexproj
