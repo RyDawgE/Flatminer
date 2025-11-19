@@ -3,7 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <sys/stat.h>
-#include "util.c"
+#include "util.h"
 
 #define byte unsigned char
 
